@@ -1,9 +1,12 @@
+;;; Written by August Karlstedt
+
 (ns jekyll-clojure
   (:require [clj-yaml.core :as yaml]
             [me.raynes.fs :as fs]
             [selmer.parser :as selmer]
             [markdown.core :as markdown]))
 
+; some basic directories
 (def site-template-dir "site_template/")
 (def includes-dir "_includes/")
 (def config-file "_config.yml")
@@ -15,8 +18,10 @@
 (selmer.validator/validate-off!)
 (selmer.parser/set-resource-path! (str (fs/file site-template-dir)))
 
+; parse the default config
 (def payload (yaml/parse-string (slurp (fs/file site-template-dir config-file))))
 
+; regex to find YAML
 (defn find-yaml [f]
   (str (first (re-find #"(?m)(---[\w\W\n]*---)" f))))
 
@@ -24,9 +29,10 @@
 (defn find-content [f]
   (str (clojure.string/replace f #"(?m)(---[\w\W\n]*---)" "")))
 
+; our base "class"
 (defrecord document [name path base ext relative-path data content output])
 
-; read files as needed
+; read files
 (defn read-files [files-dir file-regex]
   (def files (fs/find-files files-dir file-regex))
   (zipmap (for [f files]
