@@ -13,7 +13,7 @@
 
 ; some tags aren't supported!
 (selmer.validator/validate-off!)
-(selmer.parser/set-resource-path! (str (fs/file site-template-dir includes-dir)))
+(selmer.parser/set-resource-path! (str (fs/file site-template-dir)))
 
 (def payload (yaml/parse-string (slurp (fs/file site-template-dir config-file))))
 
@@ -38,12 +38,11 @@
                             :base (fs/base-name f)
                             :ext (fs/extension f)
                             :data (yaml/parse-string (clojure.string/replace (find-yaml file-contents) #"---" ""))
-                            :content (find-content file-contents),
-                            :output nil})))))
+                            :content (find-content file-contents)})))))
 
 ; set up some defaults
-(def layouts (read-files (fs/file site-template-dir ) #".*\.html"))
-(def posts (read-files (fs/file site-template-dir ) #".*\.markdown"))
+(def layouts (read-files (fs/file site-template-dir) #".*\.html"))
+(def posts (read-files (fs/file site-template-dir) #".*\.markdown"))
 (def index (read-files (fs/file site-template-dir) index-file))
 
 (println (str "Found " (count layouts) " layouts."))
@@ -70,34 +69,28 @@
   (layouts d))
 
 (defn render-from-markdown [d]
-  (markdown/md-to-html (fs/file site-template-dir ) (str (fs/file site-template-dir output-dir (:name d)) ".html")))
+  (markdown/md-to-html-string (:content d)))
 
 (defn render-from-liquid [d p]
-  (selmer/render-file (str (fs/file site-template-dir output-dir (:name d)) ".html") p))
+  (selmer/render-file (:base d) (str (fs/file site-template-dir output-dir (:name d)) ".html") p))
 
 ;d = document
 ;p = payload
 (defn render [d p]
-  (def merged-payload (merge p (get-yaml-data d) {:content (get-content d)} ))
-  (if (nil? (get-layout-type d))
-    ((def output (str (fs/file site-template-dir output-dir (:name d)) ".html"))
-      (def markdown-render (markdown/md-to-html (str (get-path d)) (str (fs/file site-template-dir output-dir (:name d)) ".html")))
-      (merge d {:output output})
-      (selmer/render-file markdown-render merged-payload))
-      (render (get-layout (get-layout-type d)) merged-payload)))
-
-;
-(defn render-post [d]
   (def layout (get-layout (get-layout-type d)))
-  (def p (merge payload {:content (render-from-markdown d)}))
-  (def output (render-from-liquid layout p))
-  output)
+  (def merged-payload (merge p (get-yaml-data d) {:content (render-from-markdown d)}))
+  (if (nil? layout)
+      (render-from-liquid d merged-payload)
+      (render layout merged-payload)))
 
 ;write
 (defn write-file [d]
+  (def layout (get-layout (get-layout-type d)))
+  (def p (merge payload {:content (render-from-markdown d)}))
+  (def prerender (render-from-liquid layout p))
+  (merge d {:content prerender})
   (spit
-    (:output d)
-    (render-post d)))
+    (str (fs/file site-template-dir output-dir (:name d)) ".html")
+    (render d p)))
 
 (write-file (posts "2016-03-14-welcome-to-jekyll"))
-(write-file (index "index"))
